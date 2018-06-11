@@ -6,6 +6,12 @@
 #include <math.h>
 #include <stdarg.h>
 
+/*
+	Para compilar:  mpicc -o main merge-sort.c
+	Para executar:  mpirun -np XXXX ./main
+					onde XXXX é o número de processos
+*/
+
 /*** 
  * Todas as Macros pré-definidas devem ser recebidas como parâmetros de
  * execução da sua implementação paralela!! 
@@ -25,6 +31,7 @@
 /*
  * More info on: http://en.cppreference.com/w/c/language/variadic
  */
+
 void debug(const char* msg, ...) {
 	if (DEBUG > 2) {
 		va_list args;
