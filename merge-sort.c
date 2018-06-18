@@ -8,8 +8,41 @@
 
 /*
 	Para compilar:  mpicc -o main merge-sort.c
-	Para executar:  mpirun -np XXXX ./main
-					onde XXXX é o número de processos
+	Para executar:  mpirun -np X ./main
+					onde X é o número de processos
+*/
+
+/*
+	CHECKLIST DO TRABALHO
+
+	
+    - Adaptar o algoritmo de merge, para que este receba DOIS arrays,
+      ao invés de apenas um array para ser dividido em duas partes.
+
+    - Aplicar os seguintes passos usando a API de programação paralela MPI:
+    
+        1. Gerar o array completo (uma série de números aleatórios) 
+           usando uma semente (seed) RECEBIDA POR PARÂMETRO.
+
+        2. Este processo deve dividir o array em duas partes e enviá-las para outro processo,
+           sendo que CADA PROCESSO DEVE RECEBER APENAS UMA PARTE DO ARRAY.
+
+        3. Isso deve ser repetido sucessivamente até que cada processo tenha uma parte do array original.
+
+        4. Cada processo deve, então, executar o Merge-Sort sequencial com sua parte do array.
+
+        5. Então, cada processo deve retornar a parte do array recebida ordenada para o processo que a enviou.
+
+    - Utilizar uma quantidade MÍNIMA possível de memória em cada um dos passos, 
+      sempre desalocando (free) memória não utilizada.
+
+    - Evitar que qualquer elemento do conjunto não seja ordenado, inclusive tratando
+      entradas de tamanho ímpar ou não divisíveis pelo número de processos.
+
+    - Não devem ser aplicadas outras técnicas de paralelismo, como Mestre-Escravo
+      ou Pipeline. O paralelismo deve ser feito exclusivamente com DIVIDIR-PARA-CONQUISTAR.
+
+
 */
 
 /*** 
@@ -21,7 +54,7 @@
 #endif
 
 #ifndef NELEMENTS
-#define NELEMENTS 100
+#define NELEMENTS 10
 #endif
 
 #ifndef MAXVAL
@@ -78,6 +111,7 @@ void recursive_merge_sort(int* tmp, int begin, int end, int* numbers) {
 
 // First Merge Sort call
 void merge_sort(int * numbers, int size, int * tmp) {
+
 	recursive_merge_sort(numbers, 0, size, tmp);
 }
 
@@ -112,7 +146,7 @@ int main (int argc, char ** argv) {
 		free (a);
 		print_array(values, 8);
 		free(values);
-        return 2;
+		return 2;
 	}
 
 	// Basic MERGE-SORT unit test
@@ -144,34 +178,36 @@ int main (int argc, char ** argv) {
 		free(a);
 		free(b);
 		printf("\n");
-        return 1;
+		return 1;
 	}
 
 	switch (argc) {
 		case 1:
-			seed = time(NULL);
-			arr_size = NELEMENTS;
-			max_val = MAXVAL;
-			break;
+		seed = time(NULL);
+		arr_size = NELEMENTS;
+		max_val = MAXVAL;
+		break;
 		case 2:
-			seed = atoi(argv[1]);
-			arr_size = NELEMENTS;
-			max_val = MAXVAL;
-			break;
+		seed = atoi(argv[1]);
+		arr_size = NELEMENTS;
+		max_val = MAXVAL;
+		break;
 		case 3:
-			seed = atoi(argv[1]);
-			arr_size = atoi(argv[2]);
-			max_val = MAXVAL;
-			break;
+		seed = atoi(argv[1]);
+		arr_size = atoi(argv[2]);
+		max_val = MAXVAL;
+		break;
 		case 4:
-			seed = atoi(argv[1]);
-			arr_size = atoi(argv[2]);
-			max_val = atoi(argv[3]);
-			break;
+		seed = atoi(argv[1]);
+		arr_size = atoi(argv[2]);
+		max_val = atoi(argv[3]);
+		break;
 		default:
-			printf("Too many arguments\n");
-			break;	
+		printf("Too many arguments\n");
+		break;	
 	}
+
+
 
 	srand(seed);
 	sortable = malloc(arr_size*sizeof(int));
@@ -181,8 +217,9 @@ int main (int argc, char ** argv) {
 	tmp = memcpy(tmp, sortable, arr_size*sizeof(int));
 
 	print_array(sortable, arr_size);
+
 	merge_sort(sortable, arr_size, tmp);
-	print_array(sortable, arr_size);
+	print_array(tmp, arr_size);
 	
 	free(sortable);
 	free(tmp);
