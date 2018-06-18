@@ -13,14 +13,14 @@
 */
 
 /*
-	CHECKLIST DO TRABALHO
+	CHECKLIST DO TRABALHO!
 
 	
     - Adaptar o algoritmo de merge, para que este receba DOIS arrays,
       ao invés de apenas um array para ser dividido em duas partes.
 
     - Aplicar os seguintes passos usando a API de programação paralela MPI:
-    
+
         1. Gerar o array completo (uma série de números aleatórios) 
            usando uma semente (seed) RECEBIDA POR PARÂMETRO.
 
