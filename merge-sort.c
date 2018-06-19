@@ -5,50 +5,51 @@
 #include <string.h>
 #include <math.h>
 #include <stdarg.h>
+#include <mpi.h>
 
 /*
-	Para compilar:  mpicc -o main merge-sort.c
-	Para executar:  mpirun -np X ./main
-					onde X é o número de processos
+Para compilar:  mpicc -o main merge-sort.c
+Para executar:  mpirun -np X ./main
+onde X é o número de processos
 */
 
 /*
-	CHECKLIST DO TRABALHO!
+CHECKLIST DO TRABALHO!
 
-	
-    - Adaptar o algoritmo de merge, para que este receba DOIS arrays,
-      ao invés de apenas um array para ser dividido em duas partes.
 
-    - Aplicar os seguintes passos usando a API de programação paralela MPI:
+- Adaptar o algoritmo de merge, para que este receba DOIS arrays,
+ao invés de apenas um array para ser dividido em duas partes.
 
-        1. Gerar o array completo (uma série de números aleatórios) 
-           usando uma semente (seed) RECEBIDA POR PARÂMETRO.
+- Aplicar os seguintes passos usando a API de programação paralela MPI:
 
-        2. Este processo deve dividir o array em duas partes e enviá-las para outro processo,
-           sendo que CADA PROCESSO DEVE RECEBER APENAS UMA PARTE DO ARRAY.
+1. Gerar o array completo (uma série de números aleatórios)
+usando uma semente (seed) RECEBIDA POR PARÂMETRO. -> OK
 
-        3. Isso deve ser repetido sucessivamente até que cada processo tenha uma parte do array original.
+2. Este processo deve dividir o array em duas partes e enviá-las para outro processo,
+sendo que CADA PROCESSO DEVE RECEBER APENAS UMA PARTE DO ARRAY.
 
-        4. Cada processo deve, então, executar o Merge-Sort sequencial com sua parte do array.
+3. Isso deve ser repetido sucessivamente até que cada processo tenha uma parte do array original.
 
-        5. Então, cada processo deve retornar a parte do array recebida ordenada para o processo que a enviou.
+4. Cada processo deve, então, executar o Merge-Sort sequencial com sua parte do array.
 
-    - Utilizar uma quantidade MÍNIMA possível de memória em cada um dos passos, 
-      sempre desalocando (free) memória não utilizada.
+5. Então, cada processo deve retornar a parte do array recebida ordenada para o processo que a enviou.
 
-    - Evitar que qualquer elemento do conjunto não seja ordenado, inclusive tratando
-      entradas de tamanho ímpar ou não divisíveis pelo número de processos.
+- Utilizar uma quantidade MÍNIMA possível de memória em cada um dos passos,
+sempre desalocando (free) memória não utilizada.
 
-    - Não devem ser aplicadas outras técnicas de paralelismo, como Mestre-Escravo
-      ou Pipeline. O paralelismo deve ser feito exclusivamente com DIVIDIR-PARA-CONQUISTAR.
+- Evitar que qualquer elemento do conjunto não seja ordenado, inclusive tratando
+entradas de tamanho ímpar ou não divisíveis pelo número de processos.
+
+- Não devem ser aplicadas outras técnicas de paralelismo, como Mestre-Escravo
+ou Pipeline. O paralelismo deve ser feito exclusivamente com DIVIDIR-PARA-CONQUISTAR.
 
 
 */
 
-/*** 
- * Todas as Macros pré-definidas devem ser recebidas como parâmetros de
- * execução da sua implementação paralela!! 
- ***/
+/***
+* Todas as Macros pré-definidas devem ser recebidas como parâmetros de
+* execução da sua implementação paralela!!
+***/
 #ifndef DEBUG
 #define DEBUG 0
 #endif
@@ -62,22 +63,22 @@
 #endif // MAX_VAL
 
 /*
- * More info on: http://en.cppreference.com/w/c/language/variadic
- */
+* More info on: http://en.cppreference.com/w/c/language/variadic
+*/
 
 void debug(const char* msg, ...) {
 	if (DEBUG > 2) {
 		va_list args;
-		va_start(args, msg); 
-		vprintf(msg, args); 
+		va_start(args, msg);
+		vprintf(msg, args);
 		va_end(args);
 	}
 }
 
 /*
- * Orderly merges two int arrays (numbers[begin..middle] and numbers[middle..end]) into one (sorted).
- * \retval: merged array -> sorted
- */
+* Orderly merges two int arrays (numbers[begin..middle] and numbers[middle..end]) into one (sorted).
+* \retval: merged array -> sorted
+*/
 void merge(int* numbers, int begin, int middle, int end, int * sorted) {
 	int i, j;
 	i = begin; j = middle;
@@ -96,11 +97,11 @@ void merge(int* numbers, int begin, int middle, int end, int * sorted) {
 
 
 /*
- * Merge sort recursive step
- */
+* Merge sort recursive step
+*/
 void recursive_merge_sort(int* tmp, int begin, int end, int* numbers) {
 	if (end - begin < 2)
-		return;
+	return;
 	else {
 		int middle = (begin + end)/2;
 		recursive_merge_sort(numbers, begin, middle, tmp);
@@ -111,7 +112,6 @@ void recursive_merge_sort(int* tmp, int begin, int end, int* numbers) {
 
 // First Merge Sort call
 void merge_sort(int * numbers, int size, int * tmp) {
-
 	recursive_merge_sort(numbers, 0, size, tmp);
 }
 
@@ -131,97 +131,187 @@ void populate_array(int* array, int size, int max) {
 }
 
 int main (int argc, char ** argv) {
-	int seed, max_val;
-	int * sortable;
-	int * tmp;
-	size_t arr_size;
+	// Variaveis MPI
+	int comm_world_size, rank, buffer_size, *buffer;
+	MPI_Status st;
 
-	// Basic MERGE unit test
-	if (DEBUG > 1) {
-		int * a = (int*)malloc(8*sizeof(int));
-		a[0] = 1; a[1] = 3; a[2] = 4; a[3] = 7;
-		a[4] = 0; a[5] = 2; a[6] = 5; a[7] = 6;
-		int * values = (int*)malloc(8*sizeof(int));
-		merge(a, 0, 4, 8, values);
-		free (a);
-		print_array(values, 8);
-		free(values);
-		return 2;
+	// Variaveis locais a cada processo
+	int n_sons;
+
+	// Inicializacao MPI
+	MPI_Init(&argc, &argv);
+	MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+	MPI_Comm_size(MPI_COMM_WORLD, &comm_world_size);
+
+	// Codigo processo principal
+	if (rank == 0) {
+		int seed, max_val;
+		int * sortable;
+		int * tmp;
+		size_t arr_size;
+
+		// Basic MERGE unit test
+		if (DEBUG > 1) {
+			int * a = (int*)malloc(8*sizeof(int));
+			a[0] = 1; a[1] = 3; a[2] = 4; a[3] = 7;
+			a[4] = 0; a[5] = 2; a[6] = 5; a[7] = 6;
+			int * values = (int*)malloc(8*sizeof(int));
+			merge(a, 0, 4, 8, values);
+			free (a);
+			print_array(values, 8);
+			free(values);
+			return 2;
+		}
+
+		// Basic MERGE-SORT unit test
+		if (DEBUG > 0) {
+			int * a = (int*)malloc(8*sizeof(int));
+			int * b = (int*)malloc(8*sizeof(int));
+			a[0] = 7; a[1] = 6; a[2] = 5; a[3] = 4;
+			a[4] = 3; a[5] = 2; a[6] = 1; a[7] = 0;
+
+			b = memcpy(b, a, 8*sizeof(int));
+			merge_sort(a, 8, b);
+			print_array(b, 8);
+
+			free(a);
+			free(b);
+
+			a = (int*)malloc(9*sizeof(int));
+			b = (int*)malloc(9*sizeof(int));
+			a[0] = 3; a[1] = 2; a[2] = 1;
+			a[3] = 10; a[4] = 11; a[5] = 12;
+			a[6] = 0; a[7] = 1; a[8] = 1;
+
+			b = memcpy(b, a, 9*sizeof(int));
+			print_array(b, 9);
+
+			merge_sort(a, 9, b);
+			print_array(b, 9);
+
+			free(a);
+			free(b);
+			printf("\n");
+			return 1;
+		}
+
+		switch (argc) {
+			case 1:
+				seed = time(NULL);
+				arr_size = NELEMENTS;
+				max_val = MAXVAL;
+				break;
+			case 2:
+				seed = atoi(argv[1]);
+				arr_size = NELEMENTS;
+				max_val = MAXVAL;
+				break;
+			case 3:
+				seed = atoi(argv[1]);
+				arr_size = atoi(argv[2]);
+				max_val = MAXVAL;
+				break;
+			case 4:
+				seed = atoi(argv[1]);
+				arr_size = atoi(argv[2]);
+				max_val = atoi(argv[3]);
+				break;
+			default:
+				printf("Too many arguments\n");
+				break;
+		}
+
+		// Inicializacao e populacao do array
+		srand(seed);
+		sortable = malloc(arr_size*sizeof(int));
+		tmp 	 = malloc(arr_size*sizeof(int));
+
+		populate_array(sortable, arr_size, max_val);
+		tmp = memcpy(tmp, sortable, arr_size*sizeof(int));
+
+		print_array(sortable, arr_size);
+
+		// DIVISAO DO TRABALHO
+		// Calculo do numero de filhos do processo
+		if ((2 * rank + 2) < comm_world_size)
+			n_sons = 2;
+		else if ((2 * rank + 1) < comm_world_size)
+			n_sons = 1;
+		else
+			n_sons = 0;
+
+		switch (n_sons) {
+			case 2:
+				// Envia uma metade do array para cada filho
+
+				// Recebe as duas metades ordenadas e faz o merge
+
+				break;
+			case 1:
+				// Envia uma metade do array para o filho e fica com a outra
+
+				// Ordena sua propria metade
+
+				// Recebe a metade do processo filho e faz o merge com sua propria metade ordenada
+
+				break;
+			case 0:
+				// Faz o sort do array recebido
+
+				break;
+			default:
+				// Caso inexistente em condicoes normais
+				printf("An error occured");
+				break;
+		}
+
+		// Imprime o array ordenado na tela
+		print_array(tmp, arr_size);
+
+		free(sortable);
+		free(tmp);
+	} else {
+		// CODIGO PROCESSOS FILHOS
+		// Recebe as mensagens com o array a ser ordenado
+
+		// VER GENERALIZAÇAO POR METODOS PARA PROCESSOS PAI E FILHOS
+		// Calculo do numero de filhos do processo
+		if ((2 * rank + 2) < comm_world_size)
+			n_sons = 2;
+		else if ((2 * rank + 1) < comm_world_size)
+			n_sons = 1;
+		else
+			n_sons = 0;
+
+		switch (n_sons) {
+			case 2:
+				// Envia uma metade do array para cada filho
+
+				// Recebe as duas metades ordenadas e faz o merge
+
+				break;
+			case 1:
+				// Envia uma metade do array para o filho e fica com a outra
+
+				// Ordena sua propria metade
+
+				// Recebe a metade do processo filho e faz o merge com sua propria metade ordenada
+
+				break;
+			case 0:
+				// Faz o sort do array recebido
+
+				break;
+			default:
+				// Caso inexistente em condicoes normais
+				printf("An error occured");
+				break;
+		}
+
+		// Envia sua parte ordenada de volta ao processo da qual recebeu
+
 	}
 
-	// Basic MERGE-SORT unit test
-	if (DEBUG > 0) {
-		int * a = (int*)malloc(8*sizeof(int));
-		int * b = (int*)malloc(8*sizeof(int));
-		a[0] = 7; a[1] = 6; a[2] = 5; a[3] = 4;
-		a[4] = 3; a[5] = 2; a[6] = 1; a[7] = 0;
-
-		b = memcpy(b, a, 8*sizeof(int));
-		merge_sort(a, 8, b);
-		print_array(b, 8);
-		
-		free(a);
-		free(b);
-
-		a = (int*)malloc(9*sizeof(int));
-		b = (int*)malloc(9*sizeof(int));
-		a[0] = 3; a[1] = 2; a[2] = 1; 
-		a[3] = 10; a[4] = 11; a[5] = 12; 
-		a[6] = 0; a[7] = 1; a[8] = 1;
-
-		b = memcpy(b, a, 9*sizeof(int));
-		print_array(b, 9);
-
-		merge_sort(a, 9, b);
-		print_array(b, 9);
-
-		free(a);
-		free(b);
-		printf("\n");
-		return 1;
-	}
-
-	switch (argc) {
-		case 1:
-		seed = time(NULL);
-		arr_size = NELEMENTS;
-		max_val = MAXVAL;
-		break;
-		case 2:
-		seed = atoi(argv[1]);
-		arr_size = NELEMENTS;
-		max_val = MAXVAL;
-		break;
-		case 3:
-		seed = atoi(argv[1]);
-		arr_size = atoi(argv[2]);
-		max_val = MAXVAL;
-		break;
-		case 4:
-		seed = atoi(argv[1]);
-		arr_size = atoi(argv[2]);
-		max_val = atoi(argv[3]);
-		break;
-		default:
-		printf("Too many arguments\n");
-		break;	
-	}
-
-
-
-	srand(seed);
-	sortable = malloc(arr_size*sizeof(int));
-	tmp 	 = malloc(arr_size*sizeof(int));
-	
-	populate_array(sortable, arr_size, max_val);
-	tmp = memcpy(tmp, sortable, arr_size*sizeof(int));
-
-	print_array(sortable, arr_size);
-
-	merge_sort(sortable, arr_size, tmp);
-	print_array(tmp, arr_size);
-	
-	free(sortable);
-	free(tmp);
+	MPI_Finalize();
 	return 0;
 }
