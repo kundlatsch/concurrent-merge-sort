@@ -79,6 +79,7 @@ void debug(const char* msg, ...) {
 * Orderly merges two int arrays (numbers[begin..middle] and numbers[middle..end]) into one (sorted).
 * \retval: merged array -> sorted
 */
+
 void merge(int* numbers, int begin, int middle, int end, int * sorted) {
 	int i, j;
 	i = begin; j = middle;
@@ -130,13 +131,49 @@ void populate_array(int* array, int size, int max) {
 	}
 }
 
+// Divide um array em duas partes
+void split_array(int* array, int arr_size, int* a, int* b) {
+	int a_size, b_size;
+	if (arr_size % 2 == 0) {
+		a_size = arr_size/2;
+		b_size = a_size;
+	} else {
+		a_size = (int)arr_size/2;
+		b_size = a_size + 1;  // Em entradas impares, b fica com o elemento extra
+	}
+
+	a = malloc(a_size*sizeof(int));
+	b = malloc(b_size*sizeof(int));
+
+	// Divide o array inicial em duas partes (VER OUTRA IMPLEMENTACAO)
+	for (int i = 0; i < a_size; i++) {
+		a[i] = array[i];
+	}
+
+	for (int i = 0; i < b_size; i++) {
+		b[i] = array[i + a_size];
+	}
+}
+
+// Calcula o numero de filhos de um processo baseado no seu rank
+int get_sons(int rank, int comm_world_size) {
+	if ((2 * rank + 2) < comm_world_size)
+		return 2;
+	else if ((2 * rank + 1) < comm_world_size)
+		return 1;
+	else
+		return 0;
+}
+
 int main (int argc, char ** argv) {
 	// Variaveis MPI
-	int comm_world_size, rank, buffer_size, *buffer;
+	int comm_world_size, rank;
 	MPI_Status st;
 
 	// Variaveis locais a cada processo
-	int n_sons;
+	int sons, *aux, right_son_rank, left_son_rank;
+	size_t arr_size;  // tamanho do vetor tmp
+	int *a, *b, a_size, b_size, *tmp;  // a, b: arrays que guardam as metades do array tmp
 
 	// Inicializacao MPI
 	MPI_Init(&argc, &argv);
@@ -146,13 +183,11 @@ int main (int argc, char ** argv) {
 	// Codigo processo principal
 	if (rank == 0) {
 		int seed, max_val;
-		int * sortable;
-		int * tmp;
-		size_t arr_size;
+		int* sortable;
 
 		// Basic MERGE unit test
 		if (DEBUG > 1) {
-			int * a = (int*)malloc(8*sizeof(int));
+			a = (int*)malloc(8*sizeof(int));
 			a[0] = 1; a[1] = 3; a[2] = 4; a[3] = 7;
 			a[4] = 0; a[5] = 2; a[6] = 5; a[7] = 6;
 			int * values = (int*)malloc(8*sizeof(int));
@@ -165,8 +200,8 @@ int main (int argc, char ** argv) {
 
 		// Basic MERGE-SORT unit test
 		if (DEBUG > 0) {
-			int * a = (int*)malloc(8*sizeof(int));
-			int * b = (int*)malloc(8*sizeof(int));
+			a = (int*)malloc(8*sizeof(int));
+			b = (int*)malloc(8*sizeof(int));
 			a[0] = 7; a[1] = 6; a[2] = 5; a[3] = 4;
 			a[4] = 3; a[5] = 2; a[6] = 1; a[7] = 0;
 
@@ -231,38 +266,75 @@ int main (int argc, char ** argv) {
 
 		print_array(sortable, arr_size);
 
-		// DIVISAO DO TRABALHO
-		// Calculo do numero de filhos do processo
-		if ((2 * rank + 2) < comm_world_size)
-			n_sons = 2;
-		else if ((2 * rank + 1) < comm_world_size)
-			n_sons = 1;
-		else
-			n_sons = 0;
+		// Calcula o numero de filhos do processo
+		sons = get_sons(rank, comm_world_size);
+		if (sons > 0) {
+			// Divisão dos arrays
+			split_array(tmp, arr_size, a, b);
 
-		switch (n_sons) {
+			// Calculo do tamanho dos arrays em numero de elementos
+			a_size = sizeof(a) / sizeof(int);
+			b_size = sizeof(b) / sizeof(int);
+
+			// Calculo para o rank dos filhos, no caso deles existirem
+			left_son_rank = (2 * rank) + 1;
+			right_son_rank = (2 * rank) + 2;
+		}
+
+		/***	RESUMO TAGS UTILIZADAS PARA COMUNICACAO
+			0 - Passagem do tamanho do array a ser ordenado por um processo a um filho
+			1 - Passagem do array a ser ordenado para um processo filho
+			2 - Retorno do array ordenado de um processo filho ao pai
+		***/
+
+		switch (sons) {
 			case 2:
-				// Envia uma metade do array para cada filho
+				// DIVIDE E ENVIA O TRABALHO PARA OS PROCESSOS FILHOS
+				// Mensagens para o filho esquerdo
+				aux = &a_size;
+				MPI_Send(&aux, 1, MPI_INT, left_son_rank, 0, MPI_COMM_WORLD);  // Tamanho do array
+				MPI_Send(&a, a_size, MPI_INT, left_son_rank, 1, MPI_COMM_WORLD);  // Metade do array a ser ordenado
+
+				// Mensagens para o filho esquerdo
+				aux = &b_size;
+				MPI_Send(&aux, 1, MPI_INT, right_son_rank, 0, MPI_COMM_WORLD);
+				MPI_Send(&b, b_size, MPI_INT, right_son_rank, 1, MPI_COMM_WORLD);
 
 				// Recebe as duas metades ordenadas e faz o merge
+				MPI_Recv(&a, a_size, MPI_INT, left_son_rank, 2, MPI_COMM_WORLD, &st);
+				MPI_Recv(&b, b_size, MPI_INT, right_son_rank, 2, MPI_COMM_WORLD, &st);
+
+				// FAZER O MERGE DOS RESULTADOS
 
 				break;
 			case 1:
-				// Envia uma metade do array para o filho e fica com a outra
+				// Envia uma metade do array e o tamanho desta para o filho e fica com a outra
+				aux = &a_size;
+				MPI_Send(&aux, 1, MPI_INT, left_son_rank, 0, MPI_COMM_WORLD);
+				MPI_Send(&a, a_size, MPI_INT, left_son_rank, 1, MPI_COMM_WORLD);
 
 				// Ordena sua propria metade
+				// FAZER O SORT DE B
 
 				// Recebe a metade do processo filho e faz o merge com sua propria metade ordenada
+				MPI_Recv(&a, a_size, MPI_INT, left_son_rank, 2, MPI_COMM_WORLD, &st);
+
+				// FAZER O MERGE SORT DE A COM B
 
 				break;
 			case 0:
-				// Faz o sort do array recebido
+				// FAZER O SORT SEQUENCIAL DO ARRAY RECEBIDO
 
 				break;
 			default:
 				// Caso inexistente em condicoes normais
 				printf("An error occured");
 				break;
+		}
+
+		if (sons > 0) {  // Caso em que A e B foram alocados
+			free(a);
+			free(b);
 		}
 
 		// Imprime o array ordenado na tela
@@ -272,34 +344,66 @@ int main (int argc, char ** argv) {
 		free(tmp);
 	} else {
 		// CODIGO PROCESSOS FILHOS
-		// Recebe as mensagens com o array a ser ordenado
+		MPI_Recv(&aux, 1, MPI_INT, MPI_ANY_SOURCE, 0, MPI_COMM_WORLD, &st);  // Recebe o tamanho do array a ser ordenado
 
-		// VER GENERALIZAÇAO POR METODOS PARA PROCESSOS PAI E FILHOS
-		// Calculo do numero de filhos do processo
-		if ((2 * rank + 2) < comm_world_size)
-			n_sons = 2;
-		else if ((2 * rank + 1) < comm_world_size)
-			n_sons = 1;
-		else
-			n_sons = 0;
+		arr_size = *aux;
+		tmp = malloc(arr_size * sizeof(int));  // Alocacao do vetor temp de acordo com o tamanho do array a ser ordenado
+		int father_rank = st.MPI_SOURCE;  // Pega o rank do processo imediatamente acima na arvore de processos
 
-		switch (n_sons) {
+		MPI_Recv(&tmp, arr_size * sizeof(int), MPI_INT, father_rank, 1, MPI_COMM_WORLD, &st);  // Recebe o array a ser ordenado
+
+		// Calcula o numero de filhos do processo
+		sons = get_sons(rank, comm_world_size);
+		if (sons > 0) {
+			// Divisão dos arrays
+			split_array(tmp, arr_size, a, b);
+
+			// Calculo do tamanho dos arrays em numero de elementos
+			a_size = sizeof(a) / sizeof(int);
+			b_size = sizeof(b) / sizeof(int);
+
+			// Calculo para o rank dos filhos, no caso deles existirem
+			left_son_rank = (2 * rank) + 1;
+			right_son_rank = (2 * rank) + 2;
+		}
+
+		switch (sons) {
 			case 2:
-				// Envia uma metade do array para cada filho
+				// DIVIDE E ENVIA O TRABALHO PARA OS PROCESSOS FILHOS
+				// Mensagens para o filho esquerdo
+				aux = &a_size;
+				MPI_Send(&aux, 1, MPI_INT, left_son_rank, 0, MPI_COMM_WORLD);  // Tamanho do array
+				MPI_Send(&a, a_size, MPI_INT, left_son_rank, 1, MPI_COMM_WORLD);  // Metade do array a ser ordenado
+
+				// Mensagens para o filho esquerdo
+				aux = &b_size;
+				MPI_Send(&aux, 1, MPI_INT, right_son_rank, 0, MPI_COMM_WORLD);
+				MPI_Send(&b, b_size, MPI_INT, right_son_rank, 1, MPI_COMM_WORLD);
 
 				// Recebe as duas metades ordenadas e faz o merge
+				MPI_Recv(&a, a_size, MPI_INT, left_son_rank, 2, MPI_COMM_WORLD, &st);
+				MPI_Recv(&b, b_size, MPI_INT, right_son_rank, 2, MPI_COMM_WORLD, &st);
+
+				// FAZER O MERGE DOS RESULTADOS
 
 				break;
 			case 1:
-				// Envia uma metade do array para o filho e fica com a outra
+				// Envia uma metade do array e o tamanho desta para o filho e fica com a outra
+				aux = &a_size;
+				MPI_Send(&aux, 1, MPI_INT, left_son_rank, 0, MPI_COMM_WORLD);
+				MPI_Send(&a, a_size, MPI_INT, left_son_rank, 1, MPI_COMM_WORLD);
 
 				// Ordena sua propria metade
+				// FAZER O SORT DE B
 
 				// Recebe a metade do processo filho e faz o merge com sua propria metade ordenada
+				MPI_Recv(&a, a_size, MPI_INT, left_son_rank, 2, MPI_COMM_WORLD, &st);
+
+				// FAZER O MERGE SORT DE A COM B
 
 				break;
 			case 0:
-				// Faz o sort do array recebido
+				// FAZER O SORT SEQUENCIAL DO ARRAY RECEBIDO
 
 				break;
 			default:
@@ -308,8 +412,15 @@ int main (int argc, char ** argv) {
 				break;
 		}
 
-		// Envia sua parte ordenada de volta ao processo da qual recebeu
+		if (sons > 0) {  // Caso em que A e B foram alocados
+			free(a);
+			free(b);
+		}
 
+		// Envia sua parte ordenada de volta ao processo da qual recebeu
+		MPI_Send(&tmp, arr_size, MPI_INT, father_rank, 2, MPI_COMM_WORLD);
+
+		free(tmp); // Pode ser feito??
 	}
 
 	MPI_Finalize();
