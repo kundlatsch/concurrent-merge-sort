@@ -55,7 +55,7 @@ ou Pipeline. O paralelismo deve ser feito exclusivamente com DIVIDIR-PARA-CONQUI
 #endif
 
 #ifndef NELEMENTS
-#define NELEMENTS 10
+#define NELEMENTS 100
 #endif
 
 #ifndef MAXVAL
@@ -248,7 +248,7 @@ int main (int argc, char ** argv) {
 			b[4] = -12; b[5] = -2; b[6] = -10; b[7] = 0;
 
 			merge_sort(a, b, 8, 8, tmp);
-			//print_array(tmp, 16);
+			print_array(tmp, 16);
 
 			free(a);
 			free(b);
@@ -266,7 +266,7 @@ int main (int argc, char ** argv) {
 			b[6] = 17; b[7] = 15; b[8] = 11;
 
 			merge_sort(a, b, 9, 9, tmp);
-			//print_array(tmp, 18);
+			print_array(tmp, 18);
 
 			free(a);
 			free(b);
@@ -335,7 +335,6 @@ int main (int argc, char ** argv) {
 			MPI_Send(b, b_size, MPI_INT, son_rank, 1, MPI_COMM_WORLD);  // Metade do array a ser ordenada
 
 			// Atualizacao de tmp e seu tamanho
-			//free(tmp);
 			arr_size = a_size;
 			tmp = realloc(tmp, arr_size * sizeof(int));
 			memcpy(tmp, a, arr_size * sizeof(int));
@@ -352,11 +351,7 @@ int main (int argc, char ** argv) {
 		b = malloc(b_size*sizeof(int));
 
 		split_array(tmp, a, b, a_size, b_size);
-
 		merge_sort(a, b, a_size, b_size, tmp);  // Merge-sort sequencial da parte restante
-
-		//free(a);
-		//free(b);
 
 		// CONQUISTA
 		while (tree_level > 0) {
@@ -365,7 +360,6 @@ int main (int argc, char ** argv) {
 
 			a_size = arr_size;
 			a = realloc(a, a_size * sizeof(int));
-
 			memcpy(a, tmp, a_size * sizeof(int));
 
 			// Recebe o tamanho do array ordenado pelo processo filho para alocar o espaço correto para este
@@ -373,28 +367,22 @@ int main (int argc, char ** argv) {
 			b_size = aux[0];
 
 			b = realloc(b, b_size * sizeof(int));
-
 			MPI_Recv(b, b_size, MPI_INT, son_rank, 2, MPI_COMM_WORLD, &st); // Recebe a metade do array ordenada pelo processo filho
 
 			// Realoca tmp com o tamanho correto
-
-			//free(tmp);
 			arr_size = a_size + b_size;
-			tmp = malloc(arr_size * sizeof(int));
-			//tmp = realloc(tmp, arr_size * sizeof(int));
+			tmp = realloc(tmp, arr_size * sizeof(int));
 
 			// Faz o merge das metades ordenadas
 			merge_sorted_arrays(a, b, a_size, b_size, tmp);
-
-			// Desaloca os recursos desnecessarios
-			//free(a);
-			//free(b);
 		}
+
+		free(a);
+		free(b);
+		free(sortable);
 
 		// Imprime o array ordenado na tela
 		print_array(tmp, arr_size);
-
-		free(sortable);
 
 	} else {
 		// CODIGO PROCESSOS FILHOS
@@ -426,7 +414,6 @@ int main (int argc, char ** argv) {
 			MPI_Send(b, b_size, MPI_INT, son_rank, 1, MPI_COMM_WORLD);  // Metade do array a ser ordenada
 
 			// Atualizacao de tmp e seu tamanho
-			//free(tmp);
 			arr_size = a_size;
 			tmp = realloc(tmp, arr_size * sizeof(int));
 			memcpy(tmp, a, arr_size * sizeof(int));
@@ -446,9 +433,6 @@ int main (int argc, char ** argv) {
 
 		merge_sort(a, b, a_size, b_size, tmp);  // Merge-sort sequencial da parte restante
 
-		//free(a);
-		//free(b);
-
 		// CONQUISTA
 		int initial_level = get_initial_level(rank);
 		while (tree_level > initial_level) {
@@ -467,17 +451,15 @@ int main (int argc, char ** argv) {
 			MPI_Recv(b, b_size, MPI_INT, son_rank, 2, MPI_COMM_WORLD, &st); // Recebe a metade do array ordenada pelo processo filho
 
 			// Realoca tmp com o tamanho correto
-			//free(tmp);
 			arr_size = a_size + b_size;
 			tmp = realloc(tmp, arr_size * sizeof(int));
 
 			// Faz o merge das metades ordenadas
 			merge_sorted_arrays(a, b, a_size, b_size, tmp);
-
-			// Desaloca os recursos desnecessarios
-			//free(a);
-			//free(b);
 		}
+
+		free(a);
+		free(b);
 
 		// Envia uma mensagem informando o tamanho do array ordenado
 		aux[0] = arr_size;
@@ -487,8 +469,6 @@ int main (int argc, char ** argv) {
 		MPI_Send(tmp, arr_size, MPI_INT, father_rank, 2, MPI_COMM_WORLD);
 	}
 
-	free(a);
-	free(b);
 	free(tmp);
 
 	MPI_Finalize();
