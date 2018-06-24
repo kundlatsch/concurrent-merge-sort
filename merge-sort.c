@@ -130,7 +130,7 @@ void merge_sort(int* a, int* b, int a_size, int b_size, int* tmp) {
 	recursive_merge_sort(a, 0, a_size, tmp);
 	memcpy(a, tmp, a_size * sizeof(int));
 
-	recursive_merge_sort(tmp, 0, b_size, b);
+	recursive_merge_sort(b, 0, b_size, tmp);
 	memcpy(b, tmp, b_size * sizeof(int));
 
 	merge_sorted_arrays(a, b, a_size, b_size, tmp);
