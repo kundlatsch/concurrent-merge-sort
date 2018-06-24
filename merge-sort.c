@@ -7,49 +7,11 @@
 #include <stdarg.h>
 #include <mpi.h>
 
-/*
-Para compilar:  mpicc -o main merge-sort.c -lm
-Para executar:  mpirun -np X ./main
-onde X é o número de processos
-*/
-
-/*
-CHECKLIST DO TRABALHO!
-
-
-- Adaptar o algoritmo de merge, para que este receba DOIS arrays,
-ao invés de apenas um array para ser dividido em duas partes.
-
-- Aplicar os seguintes passos usando a API de programação paralela MPI:
-
-1. Gerar o array completo (uma série de números aleatórios)
-usando uma semente (seed) RECEBIDA POR PARÂMETRO. -> OK
-
-2. Este processo deve dividir o array em duas partes e enviá-las para outro processo,
-sendo que CADA PROCESSO DEVE RECEBER APENAS UMA PARTE DO ARRAY.
-
-3. Isso deve ser repetido sucessivamente até que cada processo tenha uma parte do array original.
-
-4. Cada processo deve, então, executar o Merge-Sort sequencial com sua parte do array.
-
-5. Então, cada processo deve retornar a parte do array recebida ordenada para o processo que a enviou.
-
-- Utilizar uma quantidade MÍNIMA possível de memória em cada um dos passos,
-sempre desalocando (free) memória não utilizada.
-
-- Evitar que qualquer elemento do conjunto não seja ordenado, inclusive tratando
-entradas de tamanho ímpar ou não divisíveis pelo número de processos.
-
-- Não devem ser aplicadas outras técnicas de paralelismo, como Mestre-Escravo
-ou Pipeline. O paralelismo deve ser feito exclusivamente com DIVIDIR-PARA-CONQUISTAR.
-
-
-*/
-
 /***
 * Todas as Macros pré-definidas devem ser recebidas como parâmetros de
 * execução da sua implementação paralela!!
 ***/
+
 #ifndef DEBUG
 #define DEBUG 0
 #endif
