@@ -29,7 +29,7 @@
 */
 
 void debug(const char* msg, ...) {
-	if (DEBUG > 2) {
+	if (DEBUG > 3) {
 		va_list args;
 		va_start(args, msg);
 		vprintf(msg, args);
@@ -62,9 +62,9 @@ void merge(int* numbers, int begin, int middle, int end, int* sorted) {
 * Merge sort recursive step
 */
 void recursive_merge_sort(int* tmp, int begin, int end, int* numbers) {
-	if (end - begin < 2) {
+	if (end - begin < 2)
 		return;
-	} else {
+	else {
 		int middle = (begin + end)/2;
 		recursive_merge_sort(numbers, begin, middle, tmp);
 		recursive_merge_sort(numbers, middle, end, tmp);
@@ -87,13 +87,17 @@ void merge_sorted_arrays(int* a, int* b, int a_size, int b_size, int* tmp) {
 	}
 }
 
-// First Merge Sort call
+// First Merge Sort call (REVER USO DE MEMORIA)
 void merge_sort(int* a, int* b, int a_size, int b_size, int* tmp) {
-	recursive_merge_sort(a, 0, a_size, tmp);
-	memcpy(a, tmp, a_size * sizeof(int));
+	int* aux = malloc(a_size * sizeof(int));
+	memcpy(aux, a, a_size*sizeof(int));
+	recursive_merge_sort(a, 0, a_size, aux);
+	memcpy(a, aux, a_size * sizeof(int));
 
-	recursive_merge_sort(b, 0, b_size, tmp);
-	memcpy(b, tmp, b_size * sizeof(int));
+	aux = realloc(aux,b_size * sizeof(int));
+	memcpy(aux, b, b_size*sizeof(int));
+	recursive_merge_sort(b, 0, b_size, aux);
+	memcpy(b, aux, b_size * sizeof(int));
 
 	merge_sorted_arrays(a, b, a_size, b_size, tmp);
 }
@@ -212,13 +216,9 @@ int main (int argc, char ** argv) {
 			merge_sort(a, b, 8, 8, tmp);
 			print_array(tmp, 16);
 
-			free(a);
-			free(b);
-			free(tmp);
-
-			a = (int*)malloc(9*sizeof(int));
-			b = (int*)malloc(9*sizeof(int));
-			tmp = (int*)malloc(18*sizeof(int));
+			a = realloc(a, 9*sizeof(int));
+			b = realloc(b, 9*sizeof(int));
+			tmp = realloc(tmp, 18*sizeof(int));
 			a[0] = 0; a[1] = 2; a[2] = 4;
 			a[3] = 10; a[4] = 8; a[5] = 6;
 			a[6] = 12; a[7] = 14; a[8] = 16;
@@ -233,7 +233,6 @@ int main (int argc, char ** argv) {
 			free(a);
 			free(b);
 			free(tmp);
-			printf("\n");
 			return 1;
 		}
 
