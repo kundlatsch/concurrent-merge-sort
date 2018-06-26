@@ -17,7 +17,7 @@
 #endif
 
 #ifndef NELEMENTS
-#define NELEMENTS 100
+#define NELEMENTS 6
 #endif
 
 #ifndef MAXVAL
@@ -89,12 +89,15 @@ void merge_sorted_arrays(int* a, int* b, int a_size, int b_size, int* tmp) {
 
 // First Merge Sort call (REVER USO DE MEMORIA)
 void merge_sort(int* a, int* b, int a_size, int b_size, int* tmp) {
+	// Vetor aux é usado no ordenamento
 	int* aux = malloc(a_size * sizeof(int));
 	memcpy(aux, a, a_size*sizeof(int));
 	recursive_merge_sort(a, 0, a_size, aux);
 	memcpy(a, aux, a_size * sizeof(int));
 
-	aux = realloc(aux,b_size * sizeof(int));
+	// Somente realoca memória caso o tamanho de b seja ímpar
+	if((b_size % 2) != 0)
+		aux = realloc(aux,b_size * sizeof(int));
 	memcpy(aux, b, b_size*sizeof(int));
 	recursive_merge_sort(b, 0, b_size, aux);
 	memcpy(b, aux, b_size * sizeof(int));
