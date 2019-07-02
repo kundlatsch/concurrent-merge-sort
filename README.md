@@ -1,2 +1,2 @@
-# concurrent-merge-sort
-Merge sort implementado em C utilizando MPI e o método de divisão e conquista
+# Concurrent Merge Sort
+Merge sort implemented in C, using MPI and the Divide and Conquer method.
